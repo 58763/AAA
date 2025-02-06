@@ -21,7 +21,7 @@ MAX_WORKERS = 3                          # 并行线程数
 MACD_FAST = 5                            # 优化MACD参数
 MACD_SLOW = 13
 MACD_SIGNAL = 4
-VOLUME_THRESHOLD = 5e7                   # 成交量阈值（万股）5e7
+VOLUME_THRESHOLD = 3e7                   # 成交量阈值（万股）5e7
 
 # ========== 核心类定义 ==========
 class StockAnalyzer:
@@ -47,7 +47,7 @@ class StockAnalyzer:
                     
                     # ==== 动态筛选条件 ====
                     filtered_df = df[
-                        (df['代码'].str[:2].isin(['60', '00', '30'])) &
+                        (df['代码'].str[:2].isin(['60', '00'])) &
                         (df['总市值'].between(
                             dynamic_mv_min,  # 直接使用亿为单位
                             MAX_MV,
