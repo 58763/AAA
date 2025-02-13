@@ -12,7 +12,7 @@ from tqdm.auto import tqdm
 
 # ========== 系统配置 ==========
 PUSH_TOKEN = 'ec5959436fe140099cd9dd06665543df'            # 需替换为实际值（若无需推送可留空）
-MIN_MV = 30                             # 最小市值（亿）30
+MIN_MV = 50                             # 最小市值（亿）30
 MAX_MV = 500                             # 最大市值（亿）500
 PE_THRESHOLD = 50                        # 市盈率警戒值
 PB_THRESHOLD = 5                         # 市净率警戒值
@@ -21,7 +21,7 @@ MAX_WORKERS = 3                          # 并行线程数
 MACD_FAST = 5                            # 优化MACD参数
 MACD_SLOW = 13
 MACD_SIGNAL = 4
-VOLUME_THRESHOLD = 3e7                   # 成交量阈值（万股）5e7
+VOLUME_THRESHOLD = 5e7                   # 成交量阈值（万股）5e7
 ATR_PERIOD = 10                          # ATR计算周期调整为10日
 MAX_LOSS_RATIO = 0.07                    # 最大允许回撤7%
 
