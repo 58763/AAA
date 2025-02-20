@@ -11,7 +11,7 @@ from functools import lru_cache
 from tqdm.auto import tqdm
 
 # ========== 系统配置 ==========
-PUSH_TOKEN = 'ec5959436fe140099cd9dd06665543df'            # 需替换为实际值（若无需推送可留空）
+PUSH_TOKEN = 'f084c45f55ca4d658565498255db384b'            # 需替换为实际值（若无需推送可留空）
 MIN_MV = 30                             # 最小市值（亿）30
 MAX_MV = 500                             # 最大市值（亿）500
 PE_THRESHOLD = 50                        # 市盈率警戒值
