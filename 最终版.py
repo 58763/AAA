@@ -12,18 +12,16 @@ from tqdm.auto import tqdm
 
 # ========== 系统配置 ==========
 PUSH_TOKEN = 'f084c45f55ca4d658565498255db384b'            # 需替换为实际值（若无需推送可留空）
-MIN_MV = 30                             # 最小市值（亿）30
+MIN_MV = 80                             # 最小市值（亿）30
 MAX_MV = 500                             # 最大市值（亿）500
 PE_THRESHOLD = 50                        # 市盈率警戒值
 PB_THRESHOLD = 5                         # 市净率警戒值
 REQUEST_INTERVAL = 0.5                   # 请求间隔（秒）
-MAX_WORKERS = 2                          # 并行线程数
-MACD_FAST = 5                            # 优化MACD参数
-MACD_SLOW = 13
-MACD_SIGNAL = 4
-VOLUME_THRESHOLD = 3e7                   # 成交量阈值（万股）5e7
-ATR_PERIOD = 10                          # ATR计算周期调整为10日
-MAX_LOSS_RATIO = 0.07                    # 最大允许回撤7%
+MAX_WORKERS = 3                          # 并行线程数
+MACD_FAST = 8                            # 优化MACD参数
+MACD_SLOW = 20
+MACD_SIGNAL = 7
+VOLUME_THRESHOLD = 5e7                   # 成交量阈值（万股）5e7
 
 # ========== 核心类定义 ==========
 class StockAnalyzer:
@@ -122,8 +120,8 @@ class StockAnalyzer:
             high_close = (df['high'] - df['close'].shift()).abs()
             low_close = (df['low'] - df['close'].shift()).abs()
             df['tr'] = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
-            df['atr'] = df['tr'].rolling(ATR_PERIOD).mean()  # 使用新周期
-            df['ma20'] = df['close'].rolling(20).mean()  # 新增20日均线
+            df['atr'] = df['tr'].rolling(14).mean()
+            
             return df
         except Exception as e:
             print(f"K线获取失败({code}): {str(e)}")
@@ -252,62 +250,40 @@ class QuantKit:
         return min(score + np.random.randint(0,2), 10)  # 减小随机扰动
 
 class RiskManagerPro:
+    """风控增强版（动态ATR止损）"""
     @staticmethod
     def get_position(rsi_value):
-        """基于RSI值的仓位建议"""
-        if rsi_value > 70:
-            return "轻仓（超买）"
-        elif rsi_value < 30:
-            return "重仓（超卖）"
-        else:
-            return "适中"
+        """智能仓位"""
+        if rsi_value < 30: return "30%-40%"
+        elif rsi_value < 70: return "15%-25%"
+        else: return "5%-10%"
 
     @staticmethod
-    def get_stop_loss(data, trend=None):
-        """优化后的动态止损逻辑"""
+    def get_stop_loss(data):
+        """基于ATR的动态止损（增加数据检查）"""
         try:
-            if data.empty or 'close' not in data.columns:
+            # 检查数据是否有效
+            if data.empty or 'close' not in data.columns or 'low' not in data.columns:
                 return "数据无效"
-
-            current_close = data.iloc[0]['close']
-            atr_value = data.iloc[0].get('atr', 0)
-            multiplier = 1.5  # 基础倍数
-
-            # 趋势敏感型倍数调整
-            if trend == '上升笔':
-                multiplier = 1.8
-            elif trend == '下降笔':
-                multiplier = 2.2  # 更严格保护
-
-            # 核心风控逻辑
-            stop_loss = current_close
-            max_loss = current_close * (1 - MAX_LOSS_RATIO)
             
-            # ATR策略（优先但受最大回撤限制）
-            if atr_value > 0:
-                raw_stop = current_close - multiplier * atr_value
-                stop_loss = max(raw_stop, max_loss)  # 双重限制
-                # 增加ATR有效性验证
-                if (current_close - stop_loss)/current_close > 0.15:  # 单次最大止损15%
-                    stop_loss = current_close * 0.85
-
-            # 备用策略（强制应用最大回撤）
-            else:
-                if len(data) >= 10:
-                    stop_loss = max(data['low'].iloc[:10].min() * 0.97, max_loss)
-                else:
-                    stop_loss = max(data['low'].iloc[:5].min() * 0.95, max_loss)
-
-            # 最终保护（不低于20日均线下方5%）
-            if 'ma20' in data.columns and not pd.isna(data.iloc[0]['ma20']):
-                ma_stop = data.iloc[0]['ma20'] * 0.95
-                stop_loss = max(stop_loss, ma_stop)
-
-            return f"{max(stop_loss, max_loss):.2f}"  # 最终双重确认
-
+            # 优先使用 ATR 计算止损
+            if 'atr' in data.columns and not pd.isna(data.iloc[0]['atr']):
+                atr_value = data.iloc[0]['atr']
+                if atr_value > 0:  # 确保 ATR 有效
+                    stop_loss = data.iloc[0]['close'] - 2 * atr_value
+                    return f"{stop_loss:.2f}"
+            
+            # 如果 ATR 无效，使用最近 5 日最低价的 97% 作为止损
+            recent_low = data['low'].iloc[:5].min()
+            if not pd.isna(recent_low) and recent_low > 0:
+                return f"{recent_low * 0.97:.2f}"
+            
+            # 如果以上方法都失败，返回默认值
+            return "无有效止损"
         except Exception as e:
             print(f"止损计算失败: {str(e)}")
-            return f"{current_close * 0.95:.2f}"  # 保底止损
+            return "计算错误"
+
 # ========== 执行引擎 ==========
 def turbo_analyze(code):
     """带健康检查的分析流程"""
@@ -345,8 +321,6 @@ def turbo_analyze(code):
         if fundamental.get('pb', 0) > PB_THRESHOLD:
             risks.append(f"PB({fundamental['pb']})")
         
-        daily_trend = bi_daily[-1]['type'] if bi_daily else None
-        
         return {
             '代码': code,
             '名称': StockAnalyzer.get_stock_name(code),
@@ -357,7 +331,7 @@ def turbo_analyze(code):
             '风险': list(set(risks))[:3],
             '建议': [
                 f"仓位: {RiskManagerPro.get_position(daily.iloc[0].get('rsi', 50))}",
-                f"止损: {RiskManagerPro.get_stop_loss(daily, trend=daily_trend)}"  # 传递趋势参数
+                f"止损: {RiskManagerPro.get_stop_loss(daily)}"
             ]
         }
     except Exception as e:
