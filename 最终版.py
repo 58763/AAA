@@ -419,7 +419,7 @@ def main_controller(code=None):
                         "https://www.pushplus.plus/send",
                         json={
                             "token": PUSH_TOKEN,
-                            "title": f"📈 选股报告 {datetime.now().strftime('%m-%d')}",
+                            "title": f"📈 最终版选股报告 {datetime.now().strftime('%m-%d')}",
                             "content": report.replace('\n', '<br>'),
                             "template": "html",
                             "channel": "wechat",
